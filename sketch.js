@@ -1,197 +1,106 @@
-//Sound Visualizer v2
-p5.disableFriendlyErrors = true; // disables FES
-class Particle{
-  constructor(min,max,mode){
-    this.min = min
-    this.max = max
-    this.pos = p5.Vector.random2D().mult((this.min+this.max)/2)
-    if (mode == 3 || mode == 4) this.pos = p5.Vector.random2D().mult((this.min-100+this.max-100)/2)
-    this.size = random(1,4)
-    this.vel = createVector(0,0)
-    this.acc = this.pos.copy().mult(random(0.0001, 0.00001))
-  }
-  visible(){
-    if (this.pos.x < -width/2 || this.pos.x > width/2 ||
-      this.pos.y < -height/2 || this.pos.y > height/2){
-      return false
+/*
+	Generative Patterns: Sine + Perlin Noise
+	By: Justin J (cyberart_by_justin)
+  Modified By: Arnav S
+	June 10th, 2021
+*/
+
+/*
+	Noisy Sinewave Class
+	x_scale & y_speed: around 0.01 is good
+	y_attn : y attenuation: around 1/10 to 1/3 of the window height is good
+*/
+
+const ex2 = p => {
+  var waveSys;
+  var W = 1440,
+  		H = 900;
+
+  class NoisySine{
+    constructor(x_scale_,y_speed_,y_attn_,offset_,mode){
+      this.N = 200;
+    	this.x_scale = x_scale_;
+    	this.y_speed = y_speed_;
+    	this.y_attn = y_attn_;
+    	this.offset = offset_;
+      this.mode = mode
     }
-    return true
-  }
-
-  display(cond){
-    push()
-    noStroke()
-    fill(255)
-    ellipse(this.pos.x, this.pos.y, this.size)
-    pop()
-    this.vel.add(this.acc)
-    this.pos.add(this.vel)
-    if(cond){
-      this.pos.add(this.vel)
-      this.pos.add(this.vel)
+    //completely to scale with current display (no explicitly stated values)
+    getTheta = (x1,y1,x2,y2,r) => {
+      const distsq = (p.dist(x1,y1,x2,y2))**2
+      const theta = p.acos( (2*(r**2) - distsq)/(2*(r**2)) )
+      return theta
     }
-  }
-}
 
-class VIS{
-  constructor(minRadius,maxRadius,fft){
-    this.min = minRadius
-    this.max = maxRadius
-    this.rotateVal = 0
-    this.fft = fft
-  }
-
-  display = (mode,wave) => {
-    if (mode == 1){
-      push()
-      for(var t = -1; t < 2; t+=2){
-        beginShape() // create 2 half circles
-        for (var i = 0; i <= 180; i++){
-          let index = floor(map(i,0,180,0,wave.length-1)) // map values to window width to retrieve specific values
-          let r = map(wave[index], -1, 1, this.min, this.max)
-          let x1 = r * sin(i) * t
-          let y1 = r * cos(i)
-          vertex(x1,y1)
-        }
-        endShape()
+    display = (xpos,ypos) => {
+      const r = 200
+      p.push();
+      p.strokeWeight(0.2);
+    	p.translate(xpos,ypos);
+      p.beginShape()
+    	for (var i = 0; i < this.N; i++){
+    		let x = p.norm(i,0,this.N)*W/(p.PI/3);
+    		let y_off = p.lerp(-this.y_attn,this.y_attn,p.noise(x*this.x_scale,p.frameCount*this.y_speed + this.offset));
+    		let theta = p.radians(x) + p.PI/2;
+        let y = (-H/2)+y_off;
+    		x = r * p.sin(theta);
+    		y = r * p.cos(theta)+y_off/1.6;
+    		if(p.frameCount < 90){y = r * p.cos(theta)+y_off/2};
+    		if(p.frameCount < 60){y = r * p.cos(theta)+y_off/3.2};
+    		if(p.frameCount < 30){y = r * p.cos(theta)+y_off/4.8};
+    		if (y > H/2) {y = y-y_off/16};
+    		if (y < -H/2) {y = y+y_off/16};
+    		p.curveVertex(x,y); //or curveVertex
+    	}
+      p.endShape("CLOSE");
+      p.pop();
       }
-      pop()
-    }
-    if (mode == 2) {
-      push()
-      strokeWeight(1)
-      beginShape()
-      for (var i = 0; i <= 180; i+=10){
-        let index = floor(map(i,0,180,0,wave.length-1)) // map values to window width to retrieve specific values
-        let r = map(wave[index], -1, 1, this.min, this.max)
+  }
 
-        let x1 = r * sin(i)
-        let y1 = r * cos(i)
-        curveVertex(x1,y1)
-        curveVertex(x1*-1,y1)
+  class NoisyWaves{
+    constructor(xscale, yspeed,attnStart, attnStop,mode){
+      this.waves = [];
+      this.N = 50;
+      this.attnStart = attnStart
+      this.attnStop = attnStop
+      this.mode = mode
+
+      for (var i = 0; i < this.N; i++){
+        let y_attn = p.map(i,0,this.N,attnStart,attnStop);
+        this.waves.push(new NoisySine(xscale,yspeed,y_attn,i*0.01,mode));
       }
-      endShape()
-      pop()
     }
-    if (mode == 3) {
-      push()
-      strokeWeight(0.5)
-      for(var t = -1; t < 2; t+=2){
-        rotate(this.rotateVal)
-        this.rotateVal+=0.05
-        beginShape()
-        for (var i = 0; i <= 180; i+=10){
-          let index = floor(map(i,0,180,0,wave.length-1)) // map values to window width to retrieve specific values
-          let r = map(wave[index], -1, 1, this.min, this.max)
-          let x1 = r * sin(i)
-          let y1 = r * cos(i) * t
-          curveVertex(x1,y1)
-          curveVertex(x1*-1,y1*-1)
-        }
-        endShape()
+    run = () => {
+      for (var i = 0; i < this.N; i++){
+        this.waves[i].display(W/2, H/2);
       }
-      pop()
     }
-    if (mode == 4){
-      push()
-      strokeWeight(8)
-      rotate(this.rotateVal)
-      this.rotateVal+=0.1
-      for(var t = -1; t < 2; t+=2){// create 2 half circles
-        beginShape()
-        for (var i = 0; i <= 180; i+=22.5){
-          let r = map(wave, 0, 1, 50, 300)
-          let x1 = 50 * sin(i) * t
-          let y1 = 50 * cos(i)
-          let x2 = r * sin(i) * t
-          let y2 = r * cos(i)
-          curveVertex(x1,y1)
-          line(x1,y1,x2,y2)
-        }
-        endShape()
+    //---call this function below when the window is resized---
+    adjust = () => {
+      for (var i = 0; i < this.N; i++){
+        this.waves[i].y_attn = p.map(i,0,this.N,this.attnStart,this.attnStop);
       }
-      pop()
     }
   }
-}
 
-let song,fft1,fft2,vis,mic;
-let mode = 1;
-let particles = [];
-const min = 100
-const max = 350
-const threshold = 230
-const numModes = 4
-//let count = 0
-
-function preload(){
-  song = loadSound('../assets/file.mp3')
-}
-
-function setup(){
-  createCanvas(windowWidth-100, windowHeight-100)
-  noFill()
-  stroke(255)
-  strokeWeight(3)
-  angleMode(DEGREES)
-  modeButton = createButton("Change Mode")
-  playButton = createButton("Play/Pause")
-  modeButton.mousePressed(changeMode)
-  playButton.mousePressed(togglePlay)
-
-  fft = new p5.FFT()
-  fft.setInput(song)
-  fft2 = new p5.FFT()
-  vis = new VIS(min,max)
-  mic = new p5.AudioIn();
-  fft2.setInput(mic)
-}
-
-function draw(){
-  background(0)
-  translate(width/2, height/2)
-  const wave = fft.waveform() //Returns 1024 values
-  fft.analyze()
-  const amp = fft.getEnergy(20,199)
-
-  if (amp>threshold){rotate(random(-1,1))} //addShake
-
-  if (mode == 4){
-    mic.start()
-    const level = mic.getLevel()
-    vis.display(4,level)
-  } else {
-    mic.stop()
-    vis.display(mode,wave)
+  p.setup = () =>  {
+    p.createCanvas(W, H, p.P2D);
+  	p.smooth(8);
+  	p.frameRate(30);
+    let c = p.color(220,40,220,85)
+  	p.stroke(c);
+  	p.noFill();
+  	//initialize class with universal x noise scale and noise speed
+  	waveSys = new NoisyWaves(0.1,0.004,-H*0.13, H*0.13);
   }
-  const p = new Particle(min,max,mode)
-  //count++;
-  particles.push(p)
-  particles.forEach((item,idx)=>{
-    if (item.visible()){
-      item.display(amp>threshold)
-    }else {
-      particles.splice(idx,1)
-      //count--;
-    }
-  })
-  push()
-  strokeWeight(1.5)
-  text("Current Mode: " + str(mode),width/2-100,height/2-20)
-  pop() //show number of particles, ~averages at 230
-}
 
-function togglePlay(){
-  if (song.isPlaying()){
-    song.pause() //freeze canvas
-    noLoop()
-  } else {
-    song.play()
-    loop()
+  p.draw = () => {
+    p.background(0);
+  	waveSys.run();
+  }
+
+  p.windowResized = () =>{
+  	waveSys.adjust();
   }
 }
-
-function changeMode(){
-  mode++;
-  if (mode > numModes) mode = 1
-}
+new p5(ex2, "ex2")
